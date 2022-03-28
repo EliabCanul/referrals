@@ -1,14 +1,16 @@
 import pandas as pd
-import numpy as np
+import sys
 import datetime
 import pickle
 import warnings
+import logging
+from dotenv import find_dotenv, load_dotenv
 from netadata.ion.ion import query_rds, push_table
 from ..ion import ion as ion 
 from ..models import models as models
 from ..preprocessing import preprocessing as prep
+
 warnings.filterwarnings('ignore')
-from dotenv import find_dotenv, load_dotenv
 
 class Manager:
     ## Main class managers inherit from. DO NOT use this as template, use ManagerTemplate below
@@ -58,7 +60,7 @@ class Manager:
 
 class ReferralsAnalysis(Manager): #Use this template to make your own experiment
     log = ''
-    version = (0,1,1) # Everytime you change something in the code, please update this so we can keep track of changes
+    version = (0,1,2) # Everytime you change something in the code, please update this so we can keep track of changes
     run_params = {
                     'name':'Baseline Manager', # To identify between run files
                     'description':"""A class to get mutiple virality metrics. """,
@@ -82,18 +84,34 @@ class ReferralsAnalysis(Manager): #Use this template to make your own experiment
         """
 
         # IO: LOAD ----------------------------------------------------
+
+        # logger
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s [%(levelname)s] %(message)s",
+            handlers=[
+                logging.FileHandler("logfile.log"),
+                logging.StreamHandler(sys.stdout)
+            ]
+        )
+        logging.info('----------------------------')
+        
+
         # Load connection credentials
         load_dotenv(find_dotenv())
         
         # --> Make queries to RDS. These will be used throughout the code
         
         # Query referrer-referral ocurrences
+        logging.info('Querying referrals information...')
         results = query_rds('prod', query=ion.QUERY_REFERRALS, limit_1000=False)
         
         # Query of users behaviours
+        logging.info('Querying users behaviors...')
         self.users_behaviour = query_rds('prod', query=ion.QUERY_USERS_BEHAVIOR, limit_1000=False)
 
         # --> Preprocessed data
+        logging.info('Preprocessind referrals data frame...')
         ref_ref, users = prep.process_data(results)
 
         # Dictionary mapping cellphone and ClientId
@@ -118,6 +136,7 @@ class ReferralsAnalysis(Manager): #Use this template to make your own experiment
         users_not_share['ClientId'] = users_not_share['id'].apply(lambda x: dict_child_cel2Id[x])
 
         # --> Determine potential influencers: those sharing more than the mean
+        logging.info('Determining potential influencers...')
         inf_pot = users_share[users_share.n_shares > users_share['n_shares'].mean()]
         
         # Get the interactions of potential influencers
@@ -125,6 +144,7 @@ class ReferralsAnalysis(Manager): #Use this template to make your own experiment
         self.inf_pot_interactions = ref_ref[ref_ref['ClientId'].isin(inf_pot['ClientId'])]
 
         # --> Calculate many virality metrics
+        logging.info('Calculating virality metrics...')
         # Count the number of different people
         inf_pot['n_distinct_users'] = inf_pot['ClientId'].apply(lambda x: self.count_distinct_users(x))
 
@@ -227,6 +247,7 @@ class ReferralsAnalysis(Manager): #Use this template to make your own experiment
         
         # TODO: Change column names in ION
         # --> Final columns renaming (for redability) and dropping 
+        logging.info('Formating final tables...')
         # use snake case format
         #
         users_not_share.rename(columns={'id':'phone_number',
@@ -304,10 +325,13 @@ class ReferralsAnalysis(Manager): #Use this template to make your own experiment
         
 
         # -- > Push tables to rds
-        
+        logging.info('Pushing user stages to RDS...')
         push_table(user_stages, 'referrals_user_stages', 'data', if_exists = 'replace') 
 
+        logging.info('Pushing user interactions to RDS...')
         push_table(user_interactions, 'referrals_user_interactions', 'data', if_exists = 'replace')
+
+        logging.info('Finished!')
 
         return user_stages, user_interactions
         
