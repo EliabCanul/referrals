@@ -1,4 +1,7 @@
 from referrals import managers
+import os 
+
+print(os.getcwd())
 
 man = managers.ReferralsAnalysis()
 

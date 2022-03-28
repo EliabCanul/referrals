@@ -8,6 +8,7 @@ from ..ion import ion as ion
 from ..models import models as models
 from ..preprocessing import preprocessing as prep
 warnings.filterwarnings('ignore')
+from dotenv import find_dotenv, load_dotenv
 
 class Manager:
     ## Main class managers inherit from. DO NOT use this as template, use ManagerTemplate below
@@ -57,7 +58,7 @@ class Manager:
 
 class ReferralsAnalysis(Manager): #Use this template to make your own experiment
     log = ''
-    version = (0,0,0) # Everytime you change something in the code, please update this so we can keep track of changes
+    version = (0,1,1) # Everytime you change something in the code, please update this so we can keep track of changes
     run_params = {
                     'name':'Baseline Manager', # To identify between run files
                     'description':"""A class to get mutiple virality metrics. """,
@@ -81,12 +82,14 @@ class ReferralsAnalysis(Manager): #Use this template to make your own experiment
         """
 
         # IO: LOAD ----------------------------------------------------
-
+        # Load connection credentials
+        load_dotenv(find_dotenv())
+        
         # --> Make queries to RDS. These will be used throughout the code
-        print('entra')
+        
         # Query referrer-referral ocurrences
         results = query_rds('prod', query=ion.QUERY_REFERRALS, limit_1000=False)
-        print('query')
+        
         # Query of users behaviours
         self.users_behaviour = query_rds('prod', query=ion.QUERY_USERS_BEHAVIOR, limit_1000=False)
 
